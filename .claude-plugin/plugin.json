@@ -1,0 +1,8 @@
+{
+  "name": "job-search",
+  "version": "1.0.0",
+  "description": "Set up an AI job search in Claude Code from your CV: career-ops, job-board and pay-data tools, a curated company list and a free daily scan.",
+  "author": { "name": "nycruslan" },
+  "license": "MIT",
+  "keywords": ["job-search", "career-ops", "resume", "jobs"]
+}

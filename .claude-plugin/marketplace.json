@@ -1,0 +1,14 @@
+{
+  "name": "job-search-setup",
+  "description": "One skill that sets up an AI job search in Claude Code from your CV.",
+  "owner": {
+    "name": "nycruslan"
+  },
+  "plugins": [
+    {
+      "name": "job-search",
+      "source": "./",
+      "description": "Set up an AI job search in Claude Code from your CV."
+    }
+  ]
+}
