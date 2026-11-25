@@ -10,6 +10,8 @@ Claude working) you get:
 - **Your profile**: CV, target roles, pitch per role type, comp and location rules.
 - **A curated company list** with verified job boards, plus Built In and Hacker News boards.
 - **Job and pay tools**: Indeed, Dice (US) and Levels.fyi.
+- **A Job Search icon on your desktop** that opens career-ops's dashboard: new roles sorted
+  by fit, your applications by stage, follow-ups, and a box to paste any job link.
 - **A daily scan**, your choice of:
   - **On your computer**: free, at 8:00, with a desktop notification of new matches.
   - **Phone mode**: runs in Claude's cloud with your computer off. Weekday mornings it
@@ -36,9 +38,11 @@ and paste it into Claude Code as your message.
 
 ## What you need
 
-- Claude Code on a paid Claude plan.
+- Claude Code on a paid Claude plan. The **Code** tab of the Claude desktop app works; the
+  regular chat can't run the setup.
 - Your CV (PDF, Word or text; LinkedIn's "Save to PDF" works).
-- Node.js 22.13 or newer. Claude offers to install it if it's missing.
+- Node.js 22.13 or newer. Claude offers to install it if it's missing; on a Mac without
+  Homebrew, install the LTS from [nodejs.org](https://nodejs.org) first.
 - macOS, Linux or Windows.
 - For phone mode: a GitHub account and the Claude app on your phone. Each morning run
   uses some of your Claude plan.
@@ -54,13 +58,13 @@ and paste it into Claude Code as your message.
 
 ## After setup
 
-```sh
-cd ~/career-ops-data && claude
-```
+- **Every day:** double-click **Job Search** on your desktop.
+- **To apply, or anything else:** open Claude Code in `~/career-ops-data` and ask in plain
+  words, such as "help me apply to the Acme role". `/career-ops:career-ops triage` and
+  `/career-ops:career-ops pipeline` are the shortcuts for reviewing new matches.
 
-Then `/career-ops:career-ops triage` for a quick pass over new matches, and
-`/career-ops:career-ops pipeline` to evaluate the best ones. `~/career-ops-data/README.md`
-has the full guide, including how to pause and resume the daily scan.
+`~/career-ops-data/README.md` has the full guide, including how to pause and resume the
+daily scan. career-ops and Levels.fyi update on their own.
 
 ## License
 
