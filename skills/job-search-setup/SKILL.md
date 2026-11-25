@@ -1,6 +1,6 @@
 ---
 name: job-search-setup
-description: Sets up a complete AI-assisted job search in Claude Code from the user's CV. Installs the career-ops plugin, builds their profile, finds and verifies job boards for their target companies, connects job-search and pay-data tools, runs a first scan, and schedules a daily one, either on their computer or in Claude's cloud with phone notifications. Use when someone asks to set up their job search, install or configure career-ops, or "set this up for me with my CV".
+description: Sets up a complete AI-assisted job search in Claude Code from the user's CV. Installs the career-ops plugin, builds their profile, finds and verifies job boards for their target companies, connects job-search and pay-data tools, runs a first scan, adds a desktop dashboard, and schedules a daily scan, either on their computer or in Claude's cloud with phone notifications. Use when someone asks to set up their job search, install or configure career-ops, or "set this up for me with my CV".
 ---
 
 # Job search setup
@@ -26,15 +26,15 @@ In a single message, ask for:
 7. Companies they especially want, and any to skip (optional).
 8. Two or three things they wrote themselves, such as an email, a LinkedIn post or a cover letter, so answers and letters sound like them (optional).
 9. Where the daily scan runs:
-   - **This computer** (default): free, but the computer must be on. A desktop notification lists new matches.
+   - **This computer** (default): free, but the computer must be on. A desktop notification says how many roles are waiting, and a **Job Search** icon on the desktop opens a dashboard to review them.
    - **Phone mode**: runs in Claude's cloud with the computer off and pushes the best matches to the Claude app; they reply `apply 1` from their phone. It needs a GitHub account (the data lives in a private repo), and each run uses some of their Claude plan.
 
 Read the CV, then work out seniority, years of experience, role archetypes, strengths and proof points yourself.
 
 ## 2. Prerequisites
 
-- `node --version` must be 22.13 or newer. If it isn't, ask, then install: macOS `brew install node`, Windows `winget install OpenJS.NodeJS.LTS`, Linux via nvm or the distro.
-- `claude --version` must work; the plugin commands below use it.
+- `node --version` must be 22.13 or newer. If it isn't, ask, then install: macOS `brew install node` if Homebrew is there, otherwise ask them to run the LTS installer from https://nodejs.org (it asks for their Mac password, which you can't type); Windows `winget install OpenJS.NodeJS.LTS`; Linux via nvm or the distro.
+- `claude --version` must work; the plugin commands below use it. The desktop app keeps its own copy off the PATH, so if it's missing, install the command-line version (no admin rights needed): macOS and Linux `curl -fsSL https://claude.ai/install.sh | bash`, Windows PowerShell `irm https://claude.ai/install.ps1 | iex`. Use the full path the installer prints until a new shell picks it up.
 
 ## 3. Install career-ops and the tools
 
@@ -52,13 +52,23 @@ claude plugin install playwright@claude-plugins-official --scope project
 
 For US tech roles, also add Dice: `claude mcp add --scope project --transport http dice https://mcp.dice.com/mcp`.
 
-career-ops normally finishes installing on the next Claude Code start. Finish it now instead:
+Third-party marketplaces don't update on their own. Turn updates on for this folder: add this to `~/career-ops-data/.claude/settings.json`, keeping `enabledPlugins`:
+
+```json
+"extraKnownMarketplaces": {
+  "career-ops": { "source": { "source": "github", "repo": "career-ops-hq/career-ops" }, "autoUpdate": true },
+  "levels-fyi": { "source": { "source": "github", "repo": "Levels-fyi/levels-fyi-plugin" }, "autoUpdate": true }
+}
+```
+
+career-ops normally finishes installing on the next Claude Code start. Finish it now instead, including its dashboard:
 
 ```sh
 P=$(ls -d ~/.claude/plugins/cache/career-ops/career-ops/*/ | sort -V | tail -1)
 D=~/.claude/plugins/data/career-ops-career-ops
 mkdir -p "$D" && CLAUDE_PLUGIN_ROOT="$P" CLAUDE_PLUGIN_DATA="$D" node "$P/scripts/claude-plugin-session-start.mjs"
 cd "$P" && npx --no-install playwright install chromium
+npm --prefix web ci --no-audit --no-fund --loglevel=error
 node doctor.mjs --json --init-templates
 ```
 
@@ -67,7 +77,7 @@ Run every career-ops script below from `$P`. They find `~/career-ops-data` on th
 ## 4. Profile
 
 1. **CV:** write `~/career-ops-data/cv.md` in the format of `$P/examples/cv-example.md`. Keep their wording and numbers. Write date ranges with a single spaced hyphen (`Sep 2021 - Present`), never `--`, which shows up literally in tailored CVs.
-2. **Settings:** build the answers JSON (the shape is in `node onboard-write.mjs --help`) and pipe it to `node onboard-write.mjs --answers - --only profile`. Include 3–4 archetypes (primary, secondary, adjacent), a headline, superpowers and proof points from the CV, and work authorization (`authorized_in`, `needs_sponsorship`).
+2. **Settings:** build the answers JSON (the shape is in `node onboard-write.mjs --help`) and pipe it to `node onboard-write.mjs --answers - --only profile`. It refuses answers without `portals`, even with `--only profile`, so fill that in too (section 5 writes `portals.yml` itself). Include 3–4 archetypes (primary, secondary, adjacent), a headline, superpowers and proof points from the CV, and work authorization (`authorized_in`, `needs_sponsorship`).
 3. Append to `~/career-ops-data/config/profile.yml`:
    ```yaml
    scan:
@@ -153,7 +163,7 @@ Then add companies:
 
 ## 7. First scan and daily schedule
 
-1. Run `node scan.mjs --quiet` in the background; a first scan takes 5–15 minutes. Fix every line under "Errors" in its summary, re-testing with `node scan.mjs --company "<name>" --dry-run`. If they chose phone mode, stop here: section 9 schedules the scan in the cloud instead.
+1. Run `node scan.mjs --quiet` in the background; a first scan takes 5–15 minutes. Fix every line under "Errors" in its summary, re-testing with `node scan.mjs --company "<name>" --dry-run`. If they chose phone mode, skip to section 8: section 10 schedules the scan in the cloud instead.
 2. Write `~/career-ops-data/bin/daily-scan.sh` and make it executable. Replace `<NODE_DIR>` with the folder of `command -v node`:
    ```sh
    #!/bin/sh
@@ -167,7 +177,7 @@ Then add companies:
    status=0
    node scan.mjs --quiet || status=$?
    pending=$(grep -c '^- \[ \]' "$HOME/career-ops-data/data/pipeline.md" 2>/dev/null || true)
-   msg="${pending:-0} roles waiting. Run /career-ops:career-ops pipeline in ~/career-ops-data."
+   msg="${pending:-0} roles waiting. Open Job Search on your desktop."
    command -v osascript >/dev/null && osascript -e "display notification \"$msg\" with title \"career-ops scan\"" || true
    command -v notify-send >/dev/null && notify-send "career-ops scan" "$msg" || true
    exit "$status"
@@ -180,12 +190,44 @@ Then add companies:
 
    Installing a scheduled job often needs the user's approval. If it's blocked, give them the install command.
 
-## 8. Connectors (the user clicks)
+## 8. Dashboard
+
+career-ops's web dashboard is the easiest way to use it day to day: new roles sorted by fit, the pipeline by stage, follow-ups, a box to paste a job link for evaluation, and CV upload. It runs only on this computer. Don't use its own service or scan installers: they point at the versioned plugin folder, which an update replaces.
+
+1. Write `~/career-ops-data/bin/dashboard.sh` and make it executable. Replace `<NODE_DIR>` with the folder of `command -v node`:
+   ```sh
+   #!/bin/sh
+   # Opens the career-ops dashboard in the browser.
+   set -eu
+   export PATH="<NODE_DIR>:/usr/local/bin:/usr/bin:/bin"
+   URL=http://localhost:4123
+   # Already running from an earlier double-click: show it again.
+   if curl -fs -o /dev/null "$URL"; then
+     open "$URL" 2>/dev/null || xdg-open "$URL"
+     exit
+   fi
+   echo "Job Search is starting. Keep this window open while you use it."
+   # Phone mode: bring in this morning's results first.
+   [ -x "$HOME/career-ops-data/bin/sync.sh" ] && "$HOME/career-ops-data/bin/sync.sh" pull || true
+   # Newest installed career-ops, so plugin updates need no edit here.
+   PLUGIN=$(ls -d "$HOME"/.claude/plugins/cache/career-ops/career-ops/*/ | sort -V | tail -1)
+   cd "$PLUGIN"
+   # A plugin update arrives without the dashboard's packages: install them once.
+   [ -d web/node_modules/next ] || npm --prefix web ci --no-audit --no-fund --loglevel=error
+   exec node scripts/ui-server.mjs --port 4123
+   ```
+2. Put a **Job Search** icon on the desktop:
+   - **macOS:** `~/Desktop/Job Search.command` containing `#!/bin/sh` and `exec "$HOME/career-ops-data/bin/dashboard.sh"`, made executable. A double-click opens a Terminal window and the dashboard.
+   - **Windows:** `%USERPROFILE%\Desktop\Job Search.cmd` doing what `dashboard.sh` does: pick the newest version folder by version number, run `npm --prefix web ci` if `web\node_modules\next` is missing, then `node scripts\ui-server.mjs --port 4123`.
+   - **Linux:** they run `~/career-ops-data/bin/dashboard.sh`.
+3. Test it: start `bin/dashboard.sh` in the background, check that http://localhost:4123 answers, then stop it.
+
+## 9. Connectors (the user clicks)
 
 - **Indeed**, and optionally **Gmail** for recruiter replies: claude.ai → Settings → Connectors → Connect. Claude Code picks them up automatically.
 - Levels.fyi, Playwright and Dice are already installed in the data folder.
 
-## 9. Phone mode (only if they chose it)
+## 10. Phone mode (only if they chose it)
 
 Every weekday at 7:30 AM their time, a cloud session scans, scores the new roles and pushes the best ones to the Claude app. They reply in that session: `apply 1` returns a tailored CV PDF and copy-ready answers in about 10 minutes, and they press Submit themselves. The computer can stay off.
 
@@ -225,6 +267,8 @@ Check first: `gh auth status` shows them logged in (otherwise give them `! gh au
    set -eu
    DATA=$(cd "$(dirname "$0")/.." && pwd)
    CODE=$(dirname "$DATA")/career-ops
+   # Work on main: bin/sync.sh pushes there, and a session branch would be left behind.
+   git -C "$DATA" checkout -q -B main origin/main
    [ -d "$CODE" ] || git clone -q --depth 1 https://github.com/career-ops-hq/career-ops "$CODE"
    echo "$DATA" > "$CODE/.career-ops-data"
    grep -qs PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH "$DATA/.env" ||
@@ -233,7 +277,7 @@ Check first: `gh auth status` shows them logged in (otherwise give them `! gh au
    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --omit=dev --no-audit --no-fund --loglevel=error
    echo "career-ops ready: code $CODE, data $DATA"
    ```
-3. **Sync hooks.** Add this to `~/career-ops-data/.claude/settings.json`, keeping `enabledPlugins`, so sessions on the computer pull when they start and push when Claude stops:
+3. **Sync hooks.** Add this to `~/career-ops-data/.claude/settings.json`, keeping what's there, so sessions on the computer pull when they start and push when Claude stops:
    ```json
    "hooks": {
      "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/bin/sync.sh pull >/dev/null 2>&1 || true" }] }],
@@ -332,16 +376,19 @@ Check first: `gh auth status` shows them logged in (otherwise give them `! gh au
      "follow-ups this week"): handle it as a career-ops request, then sync.
    ~~~~
 5. **Cloud environment.** At claude.ai/code, create an environment named `career-ops` with network access **Limited**, package managers allowed, and these allowed domains: `*.greenhouse.io`, `*.ashbyhq.com`, `*.lever.co`, `*.myworkdayjobs.com`, `*.myworkdaysite.com`, every other host in their `portals.yml` (`grep -oE 'https?://[^/" ]+' ~/career-ops-data/portals.yml | sort -u`), and `hn.algolia.com` plus `news.ycombinator.com` if they use the Hacker News board. The user clicks this; if Claude in Chrome is connected, offer to do the clicks for them.
-6. **Routine.** Create it with the `/schedule` skill (or the RemoteTrigger tool):
+6. **Cloud scheduled task** (formerly a routine). Create it with the `/schedule` skill (or the RemoteTrigger tool):
    - name `career-ops morning`, cron `CRON_TZ=<TZ> 30 7 * * 1-5`
+   - model: the current Sonnet. The run is mostly scripts, and a run that hits the plan's usage limit stops before it can send any push, so a heavier model only makes missed mornings more likely
    - repositories: their `career-ops-data` and `https://github.com/career-ops-hq/career-ops`
    - environment `career-ops`; connectors: Indeed only, so the run can't read their email
    - prompt: `Job-search morning run for the repository owner. Work in /home/user/career-ops-data (the private data repo): read MORNING.md there and follow it, including how to handle my replies later in this session. The career-ops code is the attached repo at /home/user/career-ops. bin/sync.sh commits and pushes straight to main of career-ops-data; that is expected and approved. Never submit a job application.`
-7. **Test.** Run the routine once now. Within about 15 minutes they get a push if anything passed, and `bin/sync.sh pull` brings `data/today.md` to the computer. If a company reports "fetch failed", add its host to the environment's allowed domains.
+7. **Test.** Run the task once now. Within about 15 minutes they get a push if anything passed, and `bin/sync.sh pull` brings `data/today.md` to the computer. If a company reports "fetch failed", add its host to the environment's allowed domains.
 
-## 10. Finish
+## 11. Finish
 
 1. From `~/career-ops-data`, run `node "$P/doctor.mjs"`. Fix anything it flags until all checks pass.
-2. Write `~/career-ops-data/README.md`: a one-screen guide covering how to start, a table of common requests, what each file is for, how to pause and resume the daily scan (the launchd/cron/Task Scheduler commands, or in phone mode the routine's toggle at claude.ai/code → Routines and a table of phone replies), and how to update the plugin (`/plugin` → Marketplaces → career-ops → auto-update).
-3. Tell the user in a few lines what was set up, how many roles the first scan queued, and how to start:
-   `cd ~/career-ops-data && claude`, then `/career-ops:career-ops triage` for a quick pass/fail on the backlog and `/career-ops:career-ops pipeline` to evaluate the best ones. On the first launch Claude Code asks them to trust the folder and approve the Dice server. In phone mode, also say: the first push arrives the next weekday at 7:30 AM; reply `apply 1` in that session, open the link on the phone, tap "Autofill from resume", paste the rest, and press Submit.
+2. Write `~/career-ops-data/README.md`: a one-screen guide covering the **Job Search** dashboard, a table of common requests to Claude, what each file is for, and how to pause and resume the daily scan (the launchd/cron/Task Scheduler commands, or in phone mode the task's toggle at claude.ai/code/routines and a table of phone replies). Plugins update on their own whenever Claude Code starts in this folder.
+3. Tell the user in a few lines what was set up and how many roles the first scan queued. Then how to use it:
+   - **Every day:** double-click **Job Search** on the desktop to review new roles, track applications and see follow-ups.
+   - **To apply, or anything else:** open Claude Code in `~/career-ops-data` (in the desktop app, pick that folder; in a terminal, `cd ~/career-ops-data && claude`) and ask in plain words, such as "help me apply to the Acme role". `/career-ops:career-ops triage` gives a quick pass/fail on the backlog and `/career-ops:career-ops pipeline` evaluates the best ones. On the first launch Claude Code asks them to trust the folder and approve the Dice server.
+   - **Phone mode:** the first push arrives the next weekday at 7:30 AM; reply `apply 1` in that session, open the link on the phone, tap "Autofill from resume", paste the rest, and press Submit.
